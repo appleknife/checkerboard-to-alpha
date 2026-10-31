@@ -1,0 +1,1026 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Checkerboard → alpha</title>
+<style>
+  :root {
+    --ivory: #faf7f1;
+    --card: #fffdfa;
+    --ink: #241f1a;
+    --muted: #7b7266;
+    --line: rgba(36, 31, 26, 0.12);
+    --green: #2f5d4e;
+    --green-deep: #24483c;
+    --check-a: #e2dcce;
+    --check-b: #f6f2e9;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--ivory);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    padding: 34px clamp(18px, 5vw, 56px) 18px;
+    max-width: 1180px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 6px;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: clamp(28px, 3.4vw, 40px);
+    letter-spacing: -0.01em;
+    margin: 0 0 8px;
+  }
+
+  .lede {
+    margin: 0;
+    max-width: 62ch;
+    color: #574f45;
+  }
+
+  .lede kbd {
+    font-family: var(--sans);
+    font-size: 12px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    padding: 1px 6px;
+    color: var(--ink);
+  }
+
+  main {
+    flex: 1;
+    width: 100%;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 10px clamp(18px, 5vw, 56px) 24px;
+  }
+
+  .drop {
+    border: 1.5px dashed rgba(36, 31, 26, 0.22);
+    border-radius: 18px;
+    background: var(--card);
+    min-height: 260px;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 10px;
+    text-align: center;
+    padding: 40px 24px;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .drop strong {
+    font-family: var(--serif);
+    font-size: 21px;
+    font-weight: 600;
+  }
+
+  .drop span { color: var(--muted); max-width: 44ch; }
+
+  body.dragging .drop {
+    border-color: var(--green);
+    background: #f3f7f4;
+  }
+
+  .compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  @media (max-width: 760px) {
+    .compare { grid-template-columns: 1fr; }
+  }
+
+  figure { margin: 0; }
+
+  figcaption {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 7px;
+  }
+
+  .frame {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--card);
+    padding: 12px;
+    display: grid;
+    place-items: center;
+    min-height: 240px;
+    overflow: hidden;
+  }
+
+  .frame canvas {
+    display: block;
+    max-width: 100%;
+    max-height: 52vh;
+    object-fit: contain;
+  }
+
+  .frame.back-checker {
+    background-image: conic-gradient(var(--check-a) 25%, var(--check-b) 0 50%, var(--check-a) 0 75%, var(--check-b) 0);
+    background-size: 18px 18px;
+  }
+
+  .frame.back-white { background: #ffffff; }
+  .frame.back-dark { background: #1d1a17; }
+
+  .bar {
+    border-top: 1px solid var(--line);
+    background: rgba(255, 253, 250, 0.92);
+    backdrop-filter: blur(6px);
+    position: sticky;
+    bottom: 0;
+  }
+
+  .bar-inner {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 12px clamp(18px, 5vw, 56px);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px 22px;
+  }
+
+  .meta {
+    font-size: 12.5px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    flex: 1 1 320px;
+    min-width: 0;
+  }
+
+  .meta b { color: #46403a; font-weight: 600; }
+  .nowrap { white-space: nowrap; }
+
+  .status {
+    display: block;
+    margin-top: 3px;
+    font-size: 12.5px;
+    line-height: 1.35;
+  }
+
+  .status:empty { display: none; }
+  .status.ok { color: var(--green); }
+  .status.warn { color: #8a5a1e; }
+
+  .status.warn::before { content: "⚠ "; }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  button {
+    font: inherit;
+    font-size: 13.5px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--ink);
+    padding: 9px 16px;
+    cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease, transform 0.06s ease;
+  }
+
+  button:hover { background: #f6f2ea; }
+  button:active { transform: translateY(1px); }
+  button[disabled] { opacity: 0.42; cursor: default; }
+
+  button.primary {
+    background: var(--green);
+    border-color: var(--green);
+    color: #fff;
+    padding: 10px 20px;
+  }
+
+  button.primary:hover { background: var(--green-deep); }
+
+  .seg {
+    display: inline-flex;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    overflow: hidden;
+    background: #fff;
+  }
+
+  .seg button {
+    border: 0;
+    border-radius: 0;
+    padding: 8px 12px;
+    font-size: 12.5px;
+    background: transparent;
+  }
+
+  .seg button[aria-pressed="true"] {
+    background: #eee7db;
+    color: #2b251f;
+  }
+
+  label.trim {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+
+  input[type="range"] { width: 108px; accent-color: var(--green); }
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 86px;
+    transform: translate(-50%, 8px);
+    background: #241f1a;
+    color: #fff;
+    padding: 9px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+  }
+
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  details.how {
+    margin-top: 18px;
+    color: var(--muted);
+    font-size: 13.5px;
+  }
+
+  details.how summary {
+    cursor: pointer;
+    color: #46403a;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+  }
+
+  details.how p { max-width: 70ch; }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <p class="eyebrow">Small tool · runs entirely in this tab</p>
+  <h1>Checkerboard → alpha</h1>
+  <p class="lede">
+    Paste an image whose “transparency” is actually a painted chequerboard
+    (<kbd>Ctrl</kbd>+<kbd>V</kbd>) and get the same image back as a PNG with a real
+    transparent background. Nothing is uploaded — the picture never leaves this window.
+  </p>
+</header>
+
+<main>
+  <section class="drop" id="drop">
+    <strong>Paste an image to begin</strong>
+    <span>Ctrl+V (⌘V on a Mac) — or drop a file here, or choose one. You can paste again at any time.</span>
+    <button id="choose" type="button">Choose a file…</button>
+    <input id="file" type="file" accept="image/*" class="hidden">
+  </section>
+
+  <section class="compare hidden" id="compare">
+    <figure>
+      <figcaption>Pasted</figcaption>
+      <div class="frame back-white" id="frameIn"><canvas id="canvasIn"></canvas></div>
+    </figure>
+    <figure>
+      <figcaption>Real alpha</figcaption>
+      <div class="frame back-checker" id="frameOut"><canvas id="canvasOut"></canvas></div>
+    </figure>
+  </section>
+
+  <details class="how">
+    <summary>What it actually does</summary>
+    <p>
+      It reads the two colours the chequerboard is made of and the size of its squares, then
+      works out — pixel by pixel — how much ink sits on the square underneath, and writes that
+      as the pixel's opacity. Anything at or lighter than the darker square colour is treated as
+      empty, which is what removes the seams between squares in images that arrived as a JPEG.
+      If the picture already has a real transparent background it is passed through untouched,
+      and if it turns out to be a flat colour instead of a chequerboard, the flat colour is keyed out.
+    </p>
+    <p>
+      <b>Copy PNG</b> (or <kbd>Ctrl</kbd>+<kbd>C</kbd>) puts the result on the clipboard, ready to
+      paste into Keynote, Figma, Illustrator… <b>Download</b> or <kbd>Ctrl</kbd>+<kbd>S</kbd> saves
+      the file, and <b>Trim faint pixels</b> drops the soft halo a JPEG leaves around edges — raise
+      it a little if you can still see a ghost of the squares.
+    </p>
+    <p>
+      A page opened straight off your disk is a special case for browsers, and some of them will
+      not let it touch the clipboard. When that happens the tool says so and saves the PNG to your
+      Downloads folder instead — same file, one step more. The line under the dimensions always
+      tells you which one just happened.
+    </p>
+  </details>
+</main>
+
+<div class="bar">
+  <div class="bar-inner">
+    <div class="meta">
+      <span id="meta">Nothing loaded yet.</span>
+      <span class="status" id="status" role="status" aria-live="polite"></span>
+    </div>
+    <div class="controls">
+      <label class="trim">Trim faint pixels
+        <input id="trim" type="range" min="0" max="30" value="6">
+        <span id="trimVal">6%</span>
+      </label>
+      <div class="seg" id="backdrop">
+        <button type="button" data-back="checker" aria-pressed="true">Chequer</button>
+        <button type="button" data-back="white" aria-pressed="false">White</button>
+        <button type="button" data-back="dark" aria-pressed="false">Dark</button>
+      </div>
+      <button id="copy" type="button" class="primary" disabled>Copy PNG</button>
+      <button id="save" type="button" disabled>Download</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  const el = {
+    drop: document.getElementById('drop'),
+    compare: document.getElementById('compare'),
+    choose: document.getElementById('choose'),
+    file: document.getElementById('file'),
+    canvasIn: document.getElementById('canvasIn'),
+    canvasOut: document.getElementById('canvasOut'),
+    frameOut: document.getElementById('frameOut'),
+    meta: document.getElementById('meta'),
+    status: document.getElementById('status'),
+    trim: document.getElementById('trim'),
+    trimVal: document.getElementById('trimVal'),
+    backdrop: document.getElementById('backdrop'),
+    copy: document.getElementById('copy'),
+    save: document.getElementById('save'),
+    toast: document.getElementById('toast'),
+  };
+
+  const state = {
+    name: 'image',
+    width: 0,
+    height: 0,
+    source: null,      // ImageData of the pasted bitmap
+    trim: 0.06,
+    mono: true,
+    info: null,
+    outBlob: null,
+  };
+
+  /* ── Utilities ─────────────────────────────────────────────────────── */
+
+  let toastTimer = 0;
+  function toast(message, ms = 2200) {
+    el.toast.textContent = message;
+    el.toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.toast.classList.remove('show'), ms);
+  }
+
+  /* A line that stays put under the file details, because "did it copy?" is not
+     a question worth answering with a toast that has already faded. */
+  let statusTimer = 0;
+  function setStatus(message, kind) {
+    el.status.textContent = message;
+    el.status.className = 'status' + (kind ? ' ' + kind : '');
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => {
+      el.status.textContent = '';
+      el.status.className = 'status';
+    }, 12000);
+  }
+
+  const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+  const hex = (r, g, b) =>
+    '#' + [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+
+  function bytes(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+    return (n / 1024 / 1024).toFixed(1) + ' MB';
+  }
+
+  /* ── Load ──────────────────────────────────────────────────────────── */
+
+  async function ingest(blob, name) {
+    if (!blob || !blob.type.startsWith('image/')) {
+      toast('That was not an image.');
+      return;
+    }
+    state.name = (name || 'image').replace(/\.[a-z0-9]+$/i, '');
+    const bitmap = await createImageBitmap(blob);
+    const c = document.createElement('canvas');
+    c.width = bitmap.width;
+    c.height = bitmap.height;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(bitmap, 0, 0);
+    state.width = c.width;
+    state.height = c.height;
+    state.source = ctx.getImageData(0, 0, c.width, c.height);
+
+    el.canvasIn.width = c.width;
+    el.canvasIn.height = c.height;
+    el.canvasIn.getContext('2d').drawImage(c, 0, 0);
+
+    el.drop.classList.add('hidden');
+    el.compare.classList.remove('hidden');
+
+    process();
+  }
+
+  /* ── The conversion ────────────────────────────────────────────────── */
+
+  const CANDIDATE_SIZES = [4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 64, 80];
+
+  const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+
+  /* Square size measured from the background runs along rows: in a chequerboard
+     every run of one tone is exactly one square wide. Pixels that are neither
+     tone (ink, and the blur between ink and background) end a run instead of
+     being counted, so a glyph interrupts the pattern rather than forging it. */
+  function measureSquare(w, h, lum, toneA, toneB, tol) {
+    const mid = (toneA + toneB) / 2;
+    const counts = new Map();
+    const rowStep = Math.max(1, Math.round(h / 220));
+
+    for (let y = 0; y < h; y += rowStep) {
+      const row = y * w;
+      let prev = 0;
+      let run = 0;
+      for (let x = 0; x < w; x++) {
+        const L = lum[row + x];
+        let cls = 0;
+        if (Math.abs(L - toneA) <= tol) cls = 1;
+        else if (Math.abs(L - toneB) <= tol) cls = -1;
+        else if (L > toneB - 30) cls = L > mid ? 1 : -1; // blurred edge: nearer this square
+        if (cls === 0) { prev = 0; run = 0; continue; }
+        if (cls === prev) run++;
+        else {
+          if (prev && run >= 4 && run <= 160) counts.set(run, (counts.get(run) || 0) + 1);
+          prev = cls;
+          run = 1;
+        }
+      }
+    }
+
+    let best = 0, bestCount = 0;
+    for (const [len, c] of counts) if (c > bestCount) { bestCount = c; best = len; }
+    return best;
+  }
+
+  function process() {
+    if (!state.source) return;
+    const { width: w, height: h, data } = state.source;
+    const n = w * h;
+
+    const lum = new Float32Array(n);
+    let transparent = 0;
+
+    for (let i = 0, p = 0; i < n; i++, p += 4) {
+      const a = data[p + 3];
+      if (a < 250) transparent++;
+      lum[i] = 0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2];
+    }
+
+    /* Already transparent — hand it straight back. */
+    if (transparent > n * 0.005) {
+      drawPassthrough();
+      state.info = { mode: 'alpha', note: 'already transparent' };
+      describe();
+      return;
+    }
+
+    /* ── The chequerboard's two tones ────────────────────────────────────
+       A screenshot is often a JPEG, so each tone arrives as a small cluster of
+       levels rather than one exact value — 255 and 203/204/205… rather than
+       255 and 203. Smooth the histogram, take the two strongest peaks in the
+       light half of the range, and use the centre of each peak's cluster. */
+    const hist = new Int32Array(256);
+    for (let i = 0; i < n; i++) hist[Math.min(255, Math.max(0, Math.round(lum[i])))]++;
+
+    const lightTotal = hist.slice(140).reduce((a, b) => a + b, 0);
+
+    const smooth = new Int32Array(256);
+    for (let v = 0; v < 256; v++) {
+      let sum = 0;
+      for (let d = -2; d <= 2; d++) sum += hist[Math.min(255, Math.max(0, v + d))];
+      smooth[v] = sum;
+    }
+
+    const peaks = [];
+    for (let v = 140; v <= 255; v++) {
+      if (!smooth[v]) continue;
+      if (smooth[v] < smooth[Math.max(0, v - 1)]) continue;
+      if (smooth[v] < smooth[Math.min(255, v + 1)]) continue;
+      peaks.push(v);
+    }
+    peaks.sort((a, b) => smooth[b] - smooth[a]);
+
+    /* Centre (and population) of the cluster around a peak, so "203" accounts
+       for the whole 200–207 band that JPEG ringing leaves behind. A flat tone
+       makes a plateau in the smoothed histogram, so the peak index itself can
+       be an edge of the plateau — which is why the population is summed over
+       the cluster rather than read from one level. */
+    const cluster = (v) => {
+      let sum = 0, weight = 0;
+      for (let d = -5; d <= 5; d++) {
+        const level = Math.min(255, Math.max(0, v + d));
+        const c = hist[level];
+        if (!c) continue;
+        sum += level * c;
+        weight += c;
+      }
+      return { level: weight ? sum / weight : v, weight };
+    };
+
+    let toneA = -1, toneB = -1, countA = 0, countB = 0;
+    if (peaks.length) {
+      const first = peaks[0];
+      let second = -1;
+      for (const v of peaks) if (Math.abs(v - first) >= 6) { second = v; break; }
+      if (second >= 0) {
+        const lo = Math.min(first, second);
+        const hi = Math.max(first, second);
+        const dark = cluster(lo);
+        const light = cluster(hi);
+        toneB = dark.level;
+        countB = dark.weight;
+        toneA = light.level;
+        countA = light.weight;
+      } else {
+        const only = cluster(first);
+        toneA = only.level;
+        countA = only.weight;
+      }
+    }
+
+    if (toneA < 0 || lightTotal < n * 0.04) {
+      state.info = { mode: 'fail', note: 'no light background found' };
+      drawSource();
+      describe();
+      toast('No light background found — is this a dark image?');
+      return;
+    }
+
+    /* Two big, well-separated light levels: a chequerboard. One dominant level:
+       a plain background. */
+    const isChecker = toneB >= 0 && toneA - toneB >= 6
+      && countB >= lightTotal * 0.1 && countA >= lightTotal * 0.1;
+    const tol = 7;
+
+    /* Find the square size: for the right period, every (x mod p, y mod p) cell
+       holds one tone only, so the phase map comes out clean.
+
+       Multiples of the true period are just as "pure" (28 px at a 14 px square
+       predicts every pixel correctly, because two squares fit in one tile), so a
+       purity contest would report the coarsest guess. Instead: keep every period
+       that is demonstrably right — clean phase map *and* a small residual against
+       the tone it predicts — and then take the smallest one. The number shown
+       as the square size is the run length measured along the rows, which is
+       literally how wide one square is. */
+    let grid = null;
+    const measured = isChecker ? measureSquare(w, h, lum, toneA, toneB, tol) : 0;
+    if (isChecker) {
+      const baseStep = Math.max(1, Math.round(Math.sqrt(n / 160000)));
+      const viable = [];
+
+      /* Periods to try: twice the square size measured from the runs along rows
+         (the phase map always repeats every two squares), plus a spread of
+         common sizes in case that measurement is unreliable. */
+      const periods = [];
+      if (measured) periods.push(measured * 2);
+      for (const size of CANDIDATE_SIZES) if (!periods.includes(size)) periods.push(size);
+
+      /* A stride that shares a factor with the *real* chequer period can alias
+         it: sampled every 5th pixel, a 30 px chequer looks exactly like a 6 px
+         one. Keep the stride coprime with both. */
+      const aliasGuard = measured ? measured * 2 : 0;
+
+      for (const p of periods) {
+        /* The sampled pixels must reach every phase cell. If the stride and the
+           period share a factor, whole columns of the map would never be seen. */
+        let step = baseStep;
+        while (gcd(step, p) !== 1 || (aliasGuard && gcd(step, aliasGuard) !== 1)) step++;
+
+        const map = new Int32Array(p * p);
+        let total = 0;
+        for (let y = 0; y < h; y += step) {
+          const row = y * w;
+          for (let x = 0; x < w; x += step) {
+            const L = lum[row + x];
+            let vote = 0;
+            if (Math.abs(L - toneA) <= tol) vote = 1;
+            else if (Math.abs(L - toneB) <= tol) vote = -1;
+            else continue;
+            map[(y % p) * p + (x % p)] += vote;
+            total++;
+          }
+        }
+        if (total < 400) continue;
+
+        let agree = 0, up = 0, down = 0;
+        for (let k = 0; k < map.length; k++) {
+          agree += Math.abs(map[k]);
+          if (map[k] > 0) up++;
+          else if (map[k] < 0) down++;
+        }
+        const purity = agree / total;
+        /* A real chequer tile has both tones in it, roughly half and half. */
+        if (purity < 0.94 || up < map.length * 0.2 || down < map.length * 0.2) continue;
+
+        /* Residual: does this phase map predict the right square for pixels that
+           clearly sit on one of the two tones? A wrong period mixes them up and
+           scores roughly the gap between the tones; the right one scores ~0. */
+        let resid = 0, residN = 0;
+        for (let y = 0; y < h; y += step) {
+          const row = y * w;
+          for (let x = 0; x < w; x += step) {
+            const L = lum[row + x];
+            const nearA = Math.abs(L - toneA) <= tol;
+            const nearB = Math.abs(L - toneB) <= tol;
+            if (!nearA && !nearB) continue;
+            const predicted = map[(y % p) * p + (x % p)] > 0 ? toneA : toneB;
+            resid += Math.abs(L - predicted);
+            residN++;
+          }
+        }
+        if (residN < 400) continue;
+        viable.push({ p, purity, map, resid: resid / residN });
+      }
+
+      if (viable.length) {
+        const bestPurity = Math.max(...viable.map((v) => v.purity));
+        const bestResid = Math.min(...viable.map((v) => v.resid));
+        const fine = viable.filter(
+          (v) => v.purity >= bestPurity - 0.01 && v.resid <= Math.max(bestResid + 1.5, 4),
+        );
+        grid = fine.reduce((a, b) => (b.p < a.p ? b : a));
+      }
+    }
+
+    /* The phase map always repeats every *two* squares — one chequer tile is
+       2×2 squares, because the squares alternate along both axes — so the map's
+       period is twice the square the eye sees. Prefer the width actually
+       measured from the runs; fall back to halving the period. */
+    const square = measured || (grid ? Math.round(grid.p / 2) : null);
+
+    /* The ink colour: the darkest level that actually occurs often. */
+    const floorLevel = Math.min(toneA, toneB > 0 && isChecker ? toneB : toneA);
+    let inkL = 0, inkCount = 0;
+    for (let v = 0; v < Math.max(0, floorLevel - 40); v++) {
+      if (hist[v] > inkCount) { inkCount = hist[v]; inkL = v; }
+    }
+    if (inkCount < n * 0.002) {
+      // Fall back to the mean of the clearly dark pixels.
+      let sum = 0, count = 0;
+      for (let i = 0; i < n; i++) if (lum[i] < floorLevel - 60) { sum += lum[i]; count++; }
+      inkL = count ? sum / count : 0;
+    }
+
+    /* Any pixel at or above the darker square colour is background. This is what
+       wipes out the seams a JPEG leaves between squares. */
+    const bgFloor = Math.min(toneA, isChecker ? toneB : toneA) - 10;
+
+    const out = new Uint8ClampedArray(n * 4);
+    const phase = grid ? grid.map : null;
+    const p = grid ? grid.p : 0;
+    const trim = state.trim;
+
+    let inkR = 0, inkG = 0, inkB = 0, inkN = 0;
+    let spreadSum = 0, spreadN = 0;
+
+    for (let y = 0; y < h; y++) {
+      const row = y * w;
+      for (let x = 0; x < w; x++) {
+        const i = row + x;
+        const pxl = i * 4;
+        const L = lum[i];
+
+        let a = 0;
+        let bgL = toneA;
+        if (phase) {
+          const cell = phase[(y % p) * p + (x % p)];
+          bgL = cell >= 0 ? toneA : toneB;
+        }
+
+        if (L < bgFloor) {
+          const denom = bgL - inkL;
+          if (denom > 6) a = clamp01((bgL - L) / denom);
+        }
+
+        if (a <= trim) a = 0;
+        else a = (a - trim) / (1 - trim);
+
+        if (a > 0) {
+          const r = data[pxl], g = data[pxl + 1], b = data[pxl + 2];
+          inkR += r; inkG += g; inkB += b; inkN++;
+          const spread = Math.max(r, g, b) - Math.min(r, g, b);
+          if (a > 0.5) { spreadSum += spread; spreadN++; }
+        }
+
+        out[pxl + 3] = Math.round(a * 255);
+        out[pxl] = data[pxl];
+        out[pxl + 1] = data[pxl + 1];
+        out[pxl + 2] = data[pxl + 2];
+      }
+    }
+
+    const meanR = inkN ? inkR / inkN : 0;
+    const meanG = inkN ? inkG / inkN : 0;
+    const meanB = inkN ? inkB / inkN : 0;
+    const mono = spreadN ? spreadSum / spreadN < 8 : true;
+    state.mono = mono;
+
+    /* Monochrome art: one flat ink colour with the computed opacity. Coloured art:
+       un-mix the pixel from the square it sat on so no pale fringe survives. */
+    if (mono) {
+      const ir = Math.round(meanR), ig = Math.round(meanG), ib = Math.round(meanB);
+      for (let i = 0; i < n; i++) {
+        const pxl = i * 4;
+        if (out[pxl + 3] === 0) continue;
+        out[pxl] = ir; out[pxl + 1] = ig; out[pxl + 2] = ib;
+      }
+    } else {
+      for (let y = 0; y < h; y++) {
+        const row = y * w;
+        for (let x = 0; x < w; x++) {
+          const i = row + x;
+          const pxl = i * 4;
+          const alpha = out[pxl + 3];
+          if (alpha === 0) continue;
+          const a = alpha / 255;
+          const bgL = phase ? (phase[(y % p) * p + (x % p)] >= 0 ? toneA : toneB) : toneA;
+          for (let ch = 0; ch < 3; ch++) {
+            const v = (data[pxl + ch] - bgL * (1 - a)) / a;
+            out[pxl + ch] = Math.round(Math.min(255, Math.max(0, v)));
+          }
+        }
+      }
+    }
+
+    const outImage = new ImageData(out, w, h);
+    el.canvasOut.width = w;
+    el.canvasOut.height = h;
+    el.canvasOut.getContext('2d').putImageData(outImage, 0, 0);
+
+    state.info = {
+      mode: isChecker ? 'checker' : 'flat',
+      toneA,
+      toneB: isChecker ? toneB : null,
+      square,
+      purity: grid ? grid.purity : null,
+      ink: hex(meanR, meanG, meanB),
+      mono,
+    };
+
+    state.outBlob = null;
+    el.canvasOut.toBlob((blob) => { state.outBlob = blob; describe(); }, 'image/png');
+    el.copy.disabled = false;
+    el.save.disabled = false;
+    describe();
+  }
+
+  function drawSource() {
+    el.canvasOut.width = state.width;
+    el.canvasOut.height = state.height;
+    const ctx = el.canvasOut.getContext('2d');
+    const c = document.createElement('canvas');
+    c.width = state.width;
+    c.height = state.height;
+    c.getContext('2d').putImageData(state.source, 0, 0);
+    ctx.drawImage(c, 0, 0);
+  }
+
+  function drawPassthrough() {
+    drawSource();
+    state.outBlob = null;
+    el.canvasOut.toBlob((blob) => { state.outBlob = blob; describe(); }, 'image/png');
+    el.copy.disabled = false;
+    el.save.disabled = false;
+  }
+
+  function describe() {
+    const info = state.info;
+    if (!info) return;
+    const bits = [];
+    bits.push(`<b>${state.width} × ${state.height}</b> px`);
+    if (info.mode === 'checker') {
+      bits.push(info.square ? `squares <b>${info.square} px</b>` : 'squares not locked');
+      bits.push(`tones <b>${hex(info.toneA, info.toneA, info.toneA)}</b> / <b>${hex(info.toneB, info.toneB, info.toneB)}</b>`);
+      bits.push(`ink <b>${info.ink}</b>`);
+    } else if (info.mode === 'flat') {
+      bits.push(`flat background <b>${hex(info.toneA, info.toneA, info.toneA)}</b>`);
+      bits.push(`ink <b>${info.ink}</b>`);
+    } else if (info.mode === 'alpha') {
+      bits.push('<b>already transparent</b> — passed through untouched');
+    } else {
+      bits.push(info.note);
+    }
+    if (state.outBlob && info.mode !== 'fail') bits.push('<span class="nowrap">' + bytes(state.outBlob.size) + '</span>');
+    el.meta.innerHTML = bits.join(' · ');
+  }
+
+  /* ── Output ────────────────────────────────────────────────────────── */
+
+  function fileName() {
+    const base = (state.name || 'image').replace(/\s+/g, '-').toLowerCase();
+    return `${base}-alpha.png`;
+  }
+
+  async function ensureBlob() {
+    if (state.outBlob) return state.outBlob;
+    return await new Promise((resolve) => el.canvasOut.toBlob(resolve, 'image/png'));
+  }
+
+  async function download(note) {
+    const blob = await ensureBlob();
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName();
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    setStatus(note || ('Saved ' + fileName() + ' — it should be in your Downloads folder'), note ? 'warn' : 'ok');
+    toast('Saved ' + fileName());
+  }
+
+  /* Copying an image needs a secure context and the page in focus; a file opened
+     straight off the disk is treated differently by each browser, so this says
+     which of the two things actually happened instead of hoping you noticed a
+     toast. Either way the PNG is still delivered. */
+  async function copyOut() {
+    const blob = await ensureBlob();
+    if (!blob) return;
+
+    if (!navigator.clipboard || typeof navigator.clipboard.write !== 'function'
+        || typeof ClipboardItem === 'undefined') {
+      return copyBlocked('This browser gives local files no clipboard access');
+    }
+
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      setStatus('Copied — the PNG is on your clipboard, ready to paste', 'ok');
+      toast('PNG copied — paste it straight into your editor');
+    } catch (err) {
+      const name = (err && err.name) || 'Error';
+      copyBlocked(name === 'NotAllowedError'
+        ? 'The browser blocked the clipboard for this page'
+        : 'The clipboard refused the image (' + name + ')');
+    }
+  }
+
+  function copyBlocked(why) {
+    toast(why + ' — saving a PNG instead', 5000);
+    download(why + ' — saved ' + fileName() + ' to your Downloads folder instead');
+  }
+
+  /* ── Wiring ────────────────────────────────────────────────────────── */
+
+  window.addEventListener('paste', async (event) => {
+    const items = Array.from(event.clipboardData?.items || []);
+    const image = items.find((item) => item.type.startsWith('image/'));
+    if (!image) return;
+    event.preventDefault();
+    const blob = image.getAsFile();
+    if (blob) await ingest(blob, blob.name || 'pasted-image');
+  });
+
+  ['dragenter', 'dragover'].forEach((type) =>
+    window.addEventListener(type, (event) => {
+      event.preventDefault();
+      document.body.classList.add('dragging');
+    }),
+  );
+
+  ['dragleave', 'dragend', 'drop'].forEach((type) =>
+    window.addEventListener(type, () => document.body.classList.remove('dragging')),
+  );
+
+  window.addEventListener('drop', async (event) => {
+    event.preventDefault();
+    const file = event.dataTransfer?.files?.[0];
+    if (file) await ingest(file, file.name);
+  });
+
+  el.choose.addEventListener('click', () => el.file.click());
+
+  el.file.addEventListener('change', async () => {
+    const file = el.file.files?.[0];
+    if (file) await ingest(file, file.name);
+    el.file.value = '';
+  });
+
+  el.trim.addEventListener('input', () => {
+    state.trim = Number(el.trim.value) / 100;
+    el.trimVal.textContent = el.trim.value + '%';
+    if (state.source) process();
+  });
+
+  el.backdrop.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-back]');
+    if (!button) return;
+    [...el.backdrop.querySelectorAll('button')].forEach((b) =>
+      b.setAttribute('aria-pressed', String(b === button)),
+    );
+    /* Only the result is judged against a backdrop — the pasted side is opaque. */
+    el.frameOut.classList.remove('back-checker', 'back-white', 'back-dark');
+    el.frameOut.classList.add('back-' + button.dataset.back);
+  });
+
+  el.copy.addEventListener('click', copyOut);
+  el.save.addEventListener('click', download);
+
+  window.addEventListener('keydown', (event) => {
+    const meta = event.metaKey || event.ctrlKey;
+    if (!meta) return;
+    if (event.key.toLowerCase() === 's') {
+      event.preventDefault();
+      if (state.source) download();
+      return;
+    }
+    /* Ctrl+C copies the result, the same as the button — unless you are copying
+       selected text, which this page does not have, but be polite anyway. */
+    if (event.key.toLowerCase() === 'c' && !String(window.getSelection() || '')) {
+      event.preventDefault();
+      if (state.source && !el.copy.disabled) copyOut();
+    }
+  });
+
+  /* ── Self-check: #demo draws a chequerboard with a glyph on it, then converts
+     it, so the whole pipeline can be looked at without a clipboard. ──────── */
+  if (location.hash === '#demo') {
+    const c = document.createElement('canvas');
+    c.width = 420;
+    c.height = 560;
+    const ctx = c.getContext('2d');
+    const square = 14;
+    for (let y = 0; y < c.height; y += square) {
+      for (let x = 0; x < c.width; x += square) {
+        ctx.fillStyle = ((x / square) + (y / square)) % 2 === 0 ? '#ffffff' : '#cfcfcf';
+        ctx.fillRect(x, y, square, square);
+      }
+    }
+    // A sixteenth rest, roughly: two bulbs, a slanted stem.
+    ctx.fillStyle = '#141414';
+    for (const cy of [150, 250]) {
+      ctx.beginPath();
+      ctx.arc(170, cy, 34, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.moveTo(186, 120);
+    ctx.lineTo(212, 120);
+    ctx.lineTo(150, 470);
+    ctx.lineTo(128, 470);
+    ctx.closePath();
+    ctx.fill();
+    c.toBlob((blob) => ingest(blob, 'demo'), 'image/png');
+  }
+})();
+</script>
+</body>
+</html>
